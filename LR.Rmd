@@ -1,0 +1,91 @@
+---
+title: "Logistic Regression"
+author: "Divya sree Marreddy"
+date: "`r Sys.Date()`"
+editor_options:
+  chunk_output_type: console
+output: 
+  html_document:
+    code_folding: hide
+    toc: false
+    keep_md: false
+params: 
+  labs: "/Users/ravitummalapenta/Desktop/ANLY_545/labs.csv"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+```
+
+```{r}
+# Load necessary libraries
+library(dplyr)
+library(caret)
+library(knitr)
+library(ggplot2)
+# Load the data dynamically using params
+labs <- read.csv(params$labs)
+
+# Filter necessary columns
+labs <- labs %>%
+  dplyr::select(Treated, Height.cm., Weight.kg., Improved)
+
+# Type the columns
+labs <- labs %>%
+  mutate(
+    Treated = as.factor(Treated),
+    Improved = as.factor(Improved)
+  )
+
+# Calculate BMI
+labs <- labs %>%
+  mutate(BMI = Weight.kg. / ((Height.cm. / 100) ^ 2))
+
+# Split the data into train and test sets
+set.seed(340)
+trainIndex <- createDataPartition(labs$Improved, p = 0.5, 
+                                  list = FALSE)
+labsTrain <- labs[trainIndex, ]
+labsTest <- labs[-trainIndex, ]
+
+```
+
+```{r}
+# Logistic Regression Model - Treated to Improved
+model1 <- glm(Improved ~ Treated, data = labsTrain, family = 'binomial')
+pred1_pb <- predict(model1,labsTest,type="response")
+# Convert 'Improved' to factor with levels "Yes" and "No"
+labsTest$pred1 <- factor(ifelse(pred1_pb > 0.5, "TRUE", "FALSE"), levels = c("TRUE", "FALSE"))
+labsTest$pred1 <- factor(labsTest$pred1, levels = levels(labsTest$Improved))
+# Create confusion matrix for model1
+confusion1 <- confusionMatrix(labsTest$pred1, labsTest$Improved)
+# Accuracy Calculation
+acc1 <- round(confusion1$overall['Accuracy'] * 100, 0)
+```
+
+```{r}
+# Logistic Regression Model - Treated and BMI to Improved
+model2 <- glm(Improved ~ Treated + BMI, data = labsTrain, family = 'binomial')
+# Predictions
+pred2_pb <- predict(model2, labsTest, type = "response")
+#labsTest$pred2 <- factor(ifelse(pred2_pb > 0.3, "Yes", "No"))
+# For model2: Ensure 'pred2' is a factor with matching levels
+labsTest$pred2 <- factor(ifelse(pred2_pb > 0.5, "TRUE", "FALSE"), levels = c("TRUE", "FALSE"))
+labsTest$pred2 <- factor(labsTest$pred2, levels = levels(labsTest$Improved))
+# Confusion Matrix
+confusion2 <- confusionMatrix(labsTest$pred2, labsTest$Improved)
+# Accuracy Calculation
+acc2 <- round(confusion2$overall['Accuracy'] * 100, 0)
+```
+
+```{r}
+# Calculate accuracy
+accuracy_simple <- mean(labsTest$pred1 == labsTest$Improved)
+accuracy_bmi <- mean(labsTest$pred2 == labsTest$Improved)  # if pred2 is for the second model with BMI
+# Print accuracies
+cat("Accuracy (Treated to Improved):", round(accuracy_simple * 100, 2), "%\n")
+cat("Accuracy (Treated and BMI to Improved):", round(accuracy_bmi * 100, 2), "%\n")
+
+kable(confusion1$table, caption = "Confusion Matrix: Treated to Improved")
+kable(confusion2$table, caption = "Confusion Matrix: Treated and BMI to Improved")
+```
